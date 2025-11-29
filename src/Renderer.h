@@ -1,22 +1,27 @@
 #pragma once
 
-#include "RendererHelper.h"
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan_raii.hpp>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vector>
+#include <cstring>
 
 class Renderer {
-	friend class RendererHelper;
-
 public:
 	void run();
 
 	Renderer(int const& width, int const& height, bool const& enable) : 
 		WINDOW_WIDTH(width), WINDOW_HEIGHT(height), ENABLE_VALIDATION_LAYER(enable) {}
+
 private:
-	const RendererHelper helper{};
+	class Helper {
+	public:
+		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
+		const char** verifyGlfwExtensionsPresent(Renderer const& renderer) const;
+	};
+
+	const Helper helper{};
 
 	const int WINDOW_WIDTH = ~0;
 	const int WINDOW_HEIGHT = ~0;
