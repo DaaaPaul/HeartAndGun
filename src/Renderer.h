@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <cstring>
+#include <map>
 
 class Renderer {
 public:
@@ -19,7 +20,7 @@ private:
 	public:
 		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
 		const char** verifyGlfwExtensionsPresent(Renderer const& renderer) const;
-		std::vector<uint32_t> ratePhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices) const;
+		std::vector<uint32_t> grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const;
 	};
 
 	const Helper helper{};
@@ -32,7 +33,7 @@ private:
 		"VK_LAYER_KHRONOS_validation"
 	};
 
-	const std::vector<const char*> REQUIRED_VULKAN_EXTENSIONS = {
+	const std::vector<const char*> REQUIRED_PHYSICAL_DEVICE_EXTENSIONS = {
 		vk::KHRSwapchainExtensionName,
 		vk::KHRSpirv14ExtensionName,
 		vk::KHRSynchronization2ExtensionName,

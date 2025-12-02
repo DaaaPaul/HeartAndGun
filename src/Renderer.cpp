@@ -57,19 +57,25 @@ void Renderer::createVInstance() {
 	uint32_t requiredGlfwExtensionsCount = ~0;
 	glfwGetRequiredInstanceExtensions(&requiredGlfwExtensionsCount);
 
+	vk::ApplicationInfo appInfo = {
+	.apiVersion = vk::ApiVersion14
+	};
+
 	if(ENABLE_VALIDATION_LAYER) {
 		const std::vector<const char*> validationLayers = helper.verifyValidationLayers(*this);
 
 		vk::InstanceCreateInfo instanceCreateInfo = {
+			.pApplicationInfo = &appInfo,
 			.enabledLayerCount = static_cast<uint32_t>(validationLayers.size()),
 			.ppEnabledLayerNames = validationLayers.data(),
 			.enabledExtensionCount = requiredGlfwExtensionsCount,
-			.ppEnabledExtensionNames = requiredGlfwExtensions
+			.ppEnabledExtensionNames = requiredGlfwExtensions,
 		};
 
 		Vinstance = vk::raii::Instance(Vcontext, instanceCreateInfo);
 	} else {
 		vk::InstanceCreateInfo instanceCreateInfo = {
+			.pApplicationInfo = &appInfo,
 			.enabledExtensionCount = requiredGlfwExtensionsCount,
 			.ppEnabledExtensionNames = requiredGlfwExtensions
 		};
@@ -91,10 +97,23 @@ void Renderer::createVSurface() {
 }
 
 void Renderer::selectVPhysicalDevice() {
-	std::vector<vk::raii::PhysicalDevice> physicalDevices = Vinstance.enumeratePhysicalDevices();
+	std::vector<uint32_t> physicalDeviceAbilitiesInFour = helper.grokPhysicalDevices(Vinstance.enumeratePhysicalDevices(), *this);
 
-	uint32_t requirementsMetCount = 0;
+	bool foundOne = false;
+	for(uint32_t i = 0; i < physicalDeviceAbilitiesInFour.size(); i += 4) {
+		if( physicalDeviceAbilitiesInFour[i] &&
+		    physicalDeviceAbilitiesInFour[i + 1] &&
+		    physicalDeviceAbilitiesInFour[i + 2] &&
+			physicalDeviceAbilitiesInFour[i + 3]) {
+			VphysicalDevice = Vinstance.enumeratePhysicalDevices()[i / 4];
+			std::cout << "Selected physical device (" << VphysicalDevice.getProperties().deviceName << ")\n";
+			foundOne = true;
+		}
+	}
 
+	if(!foundOne) {
+		throw std::runtime_error("No appropriate GPU found on your computer");
+	}
 }
 
 void Renderer::createVLogicalDevice() {

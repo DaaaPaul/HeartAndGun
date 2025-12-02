@@ -1,5 +1,7 @@
 #include "Renderer.h"
 #include <iostream>
+#include <map>
+#include <string>
 
 const std::vector<const char*> Renderer::Helper::verifyValidationLayers(Renderer const& renderer) const {
 	std::vector<vk::LayerProperties> layerProperties = renderer.Vcontext.enumerateInstanceLayerProperties();
@@ -46,35 +48,64 @@ const char** Renderer::Helper::verifyGlfwExtensionsPresent(Renderer const& rende
 	return requiredExtensions;
 }
 
-std::vector<uint32_t> Renderer::Helper::ratePhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices) const {
-	std::vector<uint32_t> correspondingRatings{};
+std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const {
+	std::vector<uint32_t> physicalDeviceAbilities{};
 
 	for (vk::raii::PhysicalDevice const& physicalDevice : physicalDevices) {
-		uint32_t requirementsMetCount = 0;
-
 		if (physicalDevice.getProperties().apiVersion >= VK_VERSION_1_3) {
-			requirementsMetCount++;
+			physicalDeviceAbilities.push_back(1);
+		} else {
+			physicalDeviceAbilities.push_back(0);
 		}
 
+		bool foundGraphicsQueueFamily = false;
 		std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 		for (vk::QueueFamilyProperties const& queueFamily : queueFamilyProperties) {
 			if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
-				requirementsMetCount++;
+				physicalDeviceAbilities.push_back(1);
+				foundGraphicsQueueFamily = true;
 				break;
 			}
 		}
+		if (!foundGraphicsQueueFamily) {
+			physicalDeviceAbilities.push_back(0);
+		}
 
-		vk::StructureChain<VkPhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> requiredFeaturesAvailability =
-		physicalDevice.getFeatures2<VkPhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-
+		vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> requiredFeaturesAvailability =
+		physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
 		if(
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState) {
-			requirementsMetCount++;
+			physicalDeviceAbilities.push_back(1);
+		} else {
+			physicalDeviceAbilities.push_back(0);
 		}
 
+		std::vector<vk::ExtensionProperties> extensionProperties = physicalDevice.enumerateDeviceExtensionProperties();
+		bool foundThisOne = false;
+		bool allGood = true;
+		for(const char* const& requiredExtension : renderer.REQUIRED_PHYSICAL_DEVICE_EXTENSIONS) {
+			foundThisOne = false;
 
+			for (vk::ExtensionProperties const& property : extensionProperties) {
+				if (strcmp(property.extensionName, requiredExtension) == 0) {
+					std::cout << "Required physical device extension supported:" << requiredExtension << '\n';
+					foundThisOne = true;
+					break;
+				}
+			}
+
+			if (!foundThisOne) allGood = false;
+		}
+
+		if(allGood) {
+			physicalDeviceAbilities.push_back(1);
+		} else {
+			physicalDeviceAbilities.push_back(0);
+		}
 	}
+
+	return physicalDeviceAbilities;
 }
