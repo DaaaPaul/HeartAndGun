@@ -133,6 +133,7 @@
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Renderer.cpp" />
+    <ClCompile Include="src\RendererHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Renderer.h" />

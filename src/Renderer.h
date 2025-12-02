@@ -19,6 +19,7 @@ private:
 	public:
 		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
 		const char** verifyGlfwExtensionsPresent(Renderer const& renderer) const;
+		std::vector<uint32_t> ratePhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices) const;
 	};
 
 	const Helper helper{};
@@ -29,6 +30,13 @@ private:
 
 	const std::vector<const char*> VALIDATION_LAYERS = {
 		"VK_LAYER_KHRONOS_validation"
+	};
+
+	const std::vector<const char*> REQUIRED_VULKAN_EXTENSIONS = {
+		vk::KHRSwapchainExtensionName,
+		vk::KHRSpirv14ExtensionName,
+		vk::KHRSynchronization2ExtensionName,
+		vk::KHRCreateRenderpass2ExtensionName
 	};
 
 	GLFWwindow* window = nullptr;

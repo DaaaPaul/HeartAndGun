@@ -1,51 +1,6 @@
 #include "Renderer.h"
 #include <iostream>
 
-const std::vector<const char*> Renderer::Helper::verifyValidationLayers(Renderer const& renderer) const {
-	std::vector<vk::LayerProperties> layerProperties = renderer.Vcontext.enumerateInstanceLayerProperties();
-
-	bool layerFound = false;
-	for (uint32_t i = 0; i < renderer.VALIDATION_LAYERS.size(); ++i) {
-		layerFound = false;
-
-		for (vk::LayerProperties const& property : layerProperties) {
-			if (strcmp(property.layerName, renderer.VALIDATION_LAYERS[i]) == 0) {
-				layerFound = true;
-				break;
-			}
-		}
-
-		if (!layerFound) throw std::runtime_error("Required validation layer not supported:" + std::string(renderer.VALIDATION_LAYERS[i]));
-		else std::cout << "Required validation layer supported:" << renderer.VALIDATION_LAYERS[i] << '\n';
-	}
-
-	return renderer.VALIDATION_LAYERS;
-}
-
-const char** Renderer::Helper::verifyGlfwExtensionsPresent(Renderer const& renderer) const {
-	uint32_t requiredExtensionsCount = ~0;
-	const char** requiredExtensions = glfwGetRequiredInstanceExtensions(&requiredExtensionsCount);
-
-	std::vector<vk::ExtensionProperties> extensionProperties = renderer.Vcontext.enumerateInstanceExtensionProperties();
-
-	bool extensionFound = false;
-	for(uint32_t i = 0; i < requiredExtensionsCount; ++i) {
-		extensionFound = false;
-
-		for(vk::ExtensionProperties const& property : extensionProperties) {
-			if (strcmp(property.extensionName, requiredExtensions[i]) == 0) {
-				extensionFound = true;
-				break;
-			}
-		}
-
-		if (!extensionFound)  throw std::runtime_error("Required extension by glfw not supported:" + std::string(requiredExtensions[i]));
-		else std::cout << "Required extension by glfw supported:" << requiredExtensions[i] << '\n';
-	}
-
-	return requiredExtensions;
-}
-
 void Renderer::run() {
 	createWindow();
 	initializeVulkan();
@@ -59,6 +14,8 @@ void Renderer::createWindow() {
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 	window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Heart And Gun", nullptr, nullptr);
+
+	if (window == NULL) throw std::runtime_error("Window creation failed!");
 
 	std::cout << "GLFW window created\n";
 }
@@ -124,10 +81,19 @@ void Renderer::createVInstance() {
 }
 
 void Renderer::createVSurface() {
+	VkSurfaceKHR tempSurface;
 
+	glfwCreateWindowSurface(*Vinstance, window, nullptr, &tempSurface);
+
+	Vsurface = vk::raii::SurfaceKHR(Vinstance, tempSurface);
+
+	std::cout << "Vulkan surface created\n";
 }
 
 void Renderer::selectVPhysicalDevice() {
+	std::vector<vk::raii::PhysicalDevice> physicalDevices = Vinstance.enumeratePhysicalDevices();
+
+	uint32_t requirementsMetCount = 0;
 
 }
 
