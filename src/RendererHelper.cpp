@@ -71,12 +71,17 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 			physicalDeviceAbilities.push_back(0);
 		}
 
-		vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> requiredFeaturesAvailability =
-		physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-		if(
-		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
+		vk::StructureChain<vk::PhysicalDeviceFeatures2, 
+			vk::PhysicalDeviceVulkan11Features, 
+			vk::PhysicalDeviceVulkan13Features, 
+			vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> requiredFeaturesAvailability =
+		physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, 
+			vk::PhysicalDeviceVulkan11Features, 
+			vk::PhysicalDeviceVulkan13Features, 
+			vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+		if(requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
+			requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
-		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState) {
 			physicalDeviceAbilities.push_back(1);
 		} else {
@@ -86,7 +91,7 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 		std::vector<vk::ExtensionProperties> extensionProperties = physicalDevice.enumerateDeviceExtensionProperties();
 		bool foundThisOne = false;
 		bool allGood = true;
-		for(const char* const& requiredExtension : renderer.REQUIRED_PHYSICAL_DEVICE_EXTENSIONS) {
+		for(const char* const& requiredExtension : renderer.REQUIRED_DEVICE_EXTENSIONS) {
 			foundThisOne = false;
 
 			for (vk::ExtensionProperties const& property : extensionProperties) {
@@ -108,4 +113,64 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 	}
 
 	return physicalDeviceAbilities;
+}
+
+uint32_t Renderer::Helper::findGraphicsQueueFamilyIndex(std::vector<vk::QueueFamilyProperties> const& queueFamilyProperties, Renderer const& renderer) const {
+	int i = 0;
+	for(vk::QueueFamilyProperties const& qfProperties : queueFamilyProperties) {
+		if ((qfProperties.queueFlags & vk::QueueFlagBits::eGraphics) && renderer.VphysicalDevice.getSurfaceSupportKHR(i, renderer.Vsurface)) {
+			return i;
+		}
+		++i;
+	}
+
+	return ~0;
+}
+
+vk::SurfaceFormatKHR Renderer::Helper::getSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& surfaceFormats, Renderer const& renderer) const {
+	bool hasRGBASrgb = false;
+
+	for(vk::SurfaceFormatKHR const& surfaceFormat : surfaceFormats) {
+		if(surfaceFormat.format == vk::Format::eR8G8B8A8Srgb && surfaceFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
+			hasRGBASrgb = true;
+		}
+	}
+
+	if (hasRGBASrgb) return vk::SurfaceFormatKHR(vk::Format::eR8G8B8A8Srgb, vk::ColorSpaceKHR::eSrgbNonlinear);
+	else throw std::runtime_error("Ideal surface format not found");
+}
+
+vk::PresentModeKHR Renderer::Helper::getPresentMode(std::vector<vk::PresentModeKHR> const& presentModes, Renderer const& renderer) const {
+	bool hasMailbox = false;
+
+	for(vk::PresentModeKHR const& presentMode : presentModes) {
+		if(presentMode == vk::PresentModeKHR::eMailbox) {
+			hasMailbox = true;
+		}
+	}
+
+	if (hasMailbox) return vk::PresentModeKHR::eMailbox;
+	else throw std::runtime_error("Ideal present mode not found");
+}
+
+vk::Extent2D Renderer::Helper::getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const {
+	if(capabilities.currentExtent.width != 0xFFFFFFFF) {
+		return capabilities.currentExtent;
+	} else {
+		int width, height;
+
+		glfwGetFramebufferSize(renderer.window, &width, &height);
+
+		return vk::Extent2D(std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+							std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height));
+	}
+}
+
+uint32_t Renderer::Helper::getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const {
+	uint32_t minImageCount = capabilities.maxImageCount - 3;
+	if (minImageCount < capabilities.minImageCount) {
+		minImageCount = capabilities.minImageCount;
+	}
+
+	return minImageCount;
 }

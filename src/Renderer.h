@@ -21,6 +21,11 @@ private:
 		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
 		const char** verifyGlfwExtensionsPresent(Renderer const& renderer) const;
 		std::vector<uint32_t> grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const;
+		uint32_t findGraphicsQueueFamilyIndex(std::vector<vk::QueueFamilyProperties> const& queueFamilyProperties, Renderer const& renderer) const;
+		vk::SurfaceFormatKHR getSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& surfaceFormats, Renderer const& renderer) const;
+		vk::PresentModeKHR getPresentMode(std::vector<vk::PresentModeKHR> const& presentModes, Renderer const& renderer) const;
+		vk::Extent2D getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
+		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 	};
 
 	const Helper helper{};
@@ -33,12 +38,19 @@ private:
 		"VK_LAYER_KHRONOS_validation"
 	};
 
-	const std::vector<const char*> REQUIRED_PHYSICAL_DEVICE_EXTENSIONS = {
+	const std::vector<const char*> REQUIRED_DEVICE_EXTENSIONS = {
 		vk::KHRSwapchainExtensionName,
 		vk::KHRSpirv14ExtensionName,
 		vk::KHRSynchronization2ExtensionName,
 		vk::KHRCreateRenderpass2ExtensionName
 	};
+
+	uint32_t graphicsFamilyIndex = ~0;
+
+	vk::SurfaceFormatKHR surfaceFormat{};
+	vk::Extent2D extent{};
+	vk::PresentModeKHR presentMode{};
+	uint32_t swapchainImageCount = ~0;
 
 	GLFWwindow* window = nullptr;
 	vk::raii::Context Vcontext{};

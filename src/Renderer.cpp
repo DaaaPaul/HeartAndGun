@@ -117,19 +117,83 @@ void Renderer::selectVPhysicalDevice() {
 }
 
 void Renderer::createVLogicalDevice() {
+	vk::StructureChain<vk::PhysicalDeviceFeatures2,
+		vk::PhysicalDeviceVulkan11Features,
+		vk::PhysicalDeviceVulkan13Features,
+		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> enabledFeatures =
+	{   {},
+		{.shaderDrawParameters = true},
+		{.synchronization2 = true, .dynamicRendering = true, },
+		{.extendedDynamicState = true}	};
 
+	std::vector<vk::QueueFamilyProperties> queueFamilyProperties = VphysicalDevice.getQueueFamilyProperties();
+	graphicsFamilyIndex = helper.findGraphicsQueueFamilyIndex(queueFamilyProperties, *this);
+
+	float arbitraryPriority = 0.5f;
+	vk::DeviceQueueCreateInfo queueCreateInfo = {
+		.queueFamilyIndex = graphicsFamilyIndex,
+		.queueCount = 1,
+		.pQueuePriorities = &arbitraryPriority
+	};
+
+	vk::DeviceCreateInfo logicalDeviceCreateInfo = {
+		.pNext = &enabledFeatures.get<vk::PhysicalDeviceFeatures2>(),
+		.queueCreateInfoCount = 1,
+		.pQueueCreateInfos = &queueCreateInfo,
+		.enabledExtensionCount = static_cast<uint32_t>(REQUIRED_DEVICE_EXTENSIONS.size()),
+		.ppEnabledExtensionNames = REQUIRED_DEVICE_EXTENSIONS.data()
+	};
+
+	VlogicalDevice = vk::raii::Device(VphysicalDevice, logicalDeviceCreateInfo);
+	std::cout << "Created logical device\n";
 }
 
 void Renderer::createVQueue() {
-
+	VgraphicsQueue = vk::raii::Queue(VlogicalDevice, graphicsFamilyIndex, 0);
 }
 
 void Renderer::createVSwapchain() {
+	surfaceFormat = helper.getSurfaceFormat(VphysicalDevice.getSurfaceFormatsKHR(Vsurface), *this);
+	presentMode = helper.getPresentMode(VphysicalDevice.getSurfacePresentModesKHR(Vsurface), *this);
+	extent = helper.getSurfaceExtent(VphysicalDevice.getSurfaceCapabilitiesKHR(Vsurface), *this);
+	swapchainImageCount = helper.getSwapchainImageCount(VphysicalDevice.getSurfaceCapabilitiesKHR(Vsurface), *this);
 
+	vk::SwapchainCreateInfoKHR swapchainCreateInfo = {
+		.surface = Vsurface,
+		.minImageCount = swapchainImageCount,
+		.imageFormat = surfaceFormat.format,
+		.imageColorSpace = surfaceFormat.colorSpace,
+		.imageExtent = extent,
+		.imageArrayLayers = 1,
+		.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+		.imageSharingMode = vk::SharingMode::eExclusive,
+		.queueFamilyIndexCount = 1,
+		.pQueueFamilyIndices = &graphicsFamilyIndex,
+		.preTransform = vk::SurfaceTransformFlagBitsKHR::eIdentity,
+		.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+		.presentMode = presentMode,
+		.clipped = true
+	};
+
+	Vswapchain = vk::raii::SwapchainKHR(VlogicalDevice, swapchainCreateInfo);
+	std::cout << "Created swapchain\n";
 }
 
 void Renderer::createVImageViews() {
+	std::vector<vk::Image> images = Vswapchain.getImages();
 
+	vk::ImageViewCreateInfo imageViewCreateInfo = {
+		.image = images[0],
+		.viewType = vk::ImageViewType::e2D,
+		.format = surfaceFormat.format,
+		.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
+	};
+	for(vk::Image const& image : images) {
+		imageViewCreateInfo.image = image;
+
+		VimageViews.push_back(vk::raii::ImageView(VlogicalDevice, imageViewCreateInfo));
+	}
+	std::cout << "Created image views\n";
 }
 
 void Renderer::createVGraphicsPipeline() {
