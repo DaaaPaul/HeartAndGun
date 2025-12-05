@@ -24,10 +24,22 @@
     <ClCompile Include="src\RendererHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Logger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Logger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\shaders.slang" />
+    <None Include="src\shaders\compileShaders.bat">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

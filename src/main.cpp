@@ -7,6 +7,6 @@ int main() {
 		Renderer renderer(800, 600, true);
 		renderer.run();
 	} catch(std::exception const& e) {
-		std::cout << e.what() << '\n';
+		Logger().logError(e.what());
 	}
 }

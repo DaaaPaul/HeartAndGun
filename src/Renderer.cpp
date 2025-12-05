@@ -17,7 +17,7 @@ void Renderer::createWindow() {
 
 	if (window == NULL) throw std::runtime_error("Window creation failed!");
 
-	std::cout << "GLFW window created\n";
+	logger.logInformation("GLFW window created");
 }
 
 void Renderer::initializeVulkan() {
@@ -83,7 +83,7 @@ void Renderer::createVInstance() {
 		Vinstance = vk::raii::Instance(Vcontext, instanceCreateInfo);
 	}
 
-	std::cout << "Vulkan instance created\n";
+	logger.logInformation("Vulkan instance created");
 }
 
 void Renderer::createVSurface() {
@@ -93,7 +93,7 @@ void Renderer::createVSurface() {
 
 	Vsurface = vk::raii::SurfaceKHR(Vinstance, tempSurface);
 
-	std::cout << "Vulkan surface created\n";
+	logger.logInformation("Vulkan surface created");
 }
 
 void Renderer::selectVPhysicalDevice() {
@@ -106,7 +106,7 @@ void Renderer::selectVPhysicalDevice() {
 		    physicalDeviceAbilitiesInFour[i + 2] &&
 			physicalDeviceAbilitiesInFour[i + 3]) {
 			VphysicalDevice = Vinstance.enumeratePhysicalDevices()[i / 4];
-			std::cout << "Selected physical device (" << VphysicalDevice.getProperties().deviceName << ")\n";
+			logger.logInformation("Selected physical device (" + std::string(VphysicalDevice.getProperties().deviceName.data()) + ")");
 			foundOne = true;
 		}
 	}
@@ -145,7 +145,7 @@ void Renderer::createVLogicalDevice() {
 	};
 
 	VlogicalDevice = vk::raii::Device(VphysicalDevice, logicalDeviceCreateInfo);
-	std::cout << "Created logical device\n";
+	logger.logInformation("Created logical device");
 }
 
 void Renderer::createVQueue() {
@@ -176,7 +176,7 @@ void Renderer::createVSwapchain() {
 	};
 
 	Vswapchain = vk::raii::SwapchainKHR(VlogicalDevice, swapchainCreateInfo);
-	std::cout << "Created swapchain\n";
+	logger.logInformation("Created swapchain");
 }
 
 void Renderer::createVImageViews() {
@@ -193,11 +193,122 @@ void Renderer::createVImageViews() {
 
 		VimageViews.push_back(vk::raii::ImageView(VlogicalDevice, imageViewCreateInfo));
 	}
-	std::cout << "Created image views\n";
+	logger.logInformation("Created image views");
 }
 
 void Renderer::createVGraphicsPipeline() {
+	// configurable pipeline stages (vertex and fragment shader)
+	std::vector<char> sprivBytes = helper.readSprivFileBytes("src/shaders/shaders.spv", *this);
+	vk::ShaderModuleCreateInfo shaderModuleInfo = {
+		.codeSize = sprivBytes.size() * sizeof(char),
+		.pCode = reinterpret_cast<uint32_t*>(sprivBytes.data())
+	};
+	vk::raii::ShaderModule module(VlogicalDevice, shaderModuleInfo);
 
+	vk::PipelineShaderStageCreateInfo vertexShaderInfo = {
+		.stage = vk::ShaderStageFlagBits::eVertex,
+		.module = module,
+		.pName = "vertexMain",
+	};
+	vk::PipelineShaderStageCreateInfo fragmentShaderInfo = {
+		.stage = vk::ShaderStageFlagBits::eFragment,
+		.module = module,
+		.pName = "fragmentMain",
+	};
+	vk::PipelineShaderStageCreateInfo shaderStagesInfo[] = { vertexShaderInfo , fragmentShaderInfo };
+
+	// vertex input
+	vk::PipelineVertexInputStateCreateInfo vertexInputInfo{};
+
+	// input assembly
+	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {
+		.topology = vk::PrimitiveTopology::eTriangleList,
+		.primitiveRestartEnable = vk::False
+	};
+
+	// tessellation
+	vk::PipelineTessellationStateCreateInfo tessellationInfo{};
+
+	// viewport and scissor
+	vk::Viewport viewport = {
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = static_cast<float>(extent.width),
+		.height = static_cast<float>(extent.height),
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
+	vk::Rect2D scissor = {
+		.offset = vk::Offset2D(0, 0),
+		.extent = extent
+	};
+	vk::PipelineViewportStateCreateInfo viewportInfo = {
+		.viewportCount = 1,
+		.pViewports = &viewport,
+		.scissorCount = 1,
+		.pScissors = &scissor
+	};
+
+	// rasterization
+	vk::PipelineRasterizationStateCreateInfo rasterizationInfo = {
+		.depthClampEnable = vk::False,
+		.rasterizerDiscardEnable = vk::False,
+		.polygonMode = vk::PolygonMode::eFill,
+		.cullMode = vk::CullModeFlagBits::eBack,
+		.frontFace = vk::FrontFace::eClockwise,
+		.depthBiasEnable = vk::False,
+		.depthBiasSlopeFactor = 1.0f,
+		.lineWidth = 1.0f
+	};
+
+	// multisampling and blending
+	vk::PipelineMultisampleStateCreateInfo multisamplingInfo = {
+		.rasterizationSamples = vk::SampleCountFlagBits::e1,
+		.sampleShadingEnable = vk::False
+	};
+
+	vk::PipelineColorBlendAttachmentState colorBlendAttachmentInfo = {
+		.blendEnable = vk::False,
+		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
+	};
+
+	vk::PipelineColorBlendStateCreateInfo colorBlendingInfo = {
+		.logicOpEnable = vk::False,
+		.logicOp = vk::LogicOp::eCopy,
+		.attachmentCount = 1,
+		.pAttachments = &colorBlendAttachmentInfo
+	};
+
+	// dynamic rendering attachment info
+	vk::PipelineRenderingCreateInfo attachmentInfo = {
+		.colorAttachmentCount = 1,
+		.pColorAttachmentFormats = &surfaceFormat.format
+	};
+
+	// null layout info
+	vk::raii::PipelineLayout pipelineLayout = nullptr;
+	vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
+		.setLayoutCount = 0,
+		.pushConstantRangeCount = 0
+	};
+	pipelineLayout = vk::raii::PipelineLayout(VlogicalDevice, pipelineLayoutInfo);
+
+	vk::GraphicsPipelineCreateInfo pipelineInfo = {
+		.pNext = &attachmentInfo,
+		.stageCount = 2,
+		.pStages = shaderStagesInfo,
+		.pVertexInputState = &vertexInputInfo,
+		.pInputAssemblyState = &inputAssemblyInfo,
+		.pViewportState = &viewportInfo,
+		.pRasterizationState = &rasterizationInfo,
+		.pMultisampleState = &multisamplingInfo,
+		.pColorBlendState = &colorBlendingInfo,
+		.layout = pipelineLayout,
+		.renderPass = nullptr
+	};
+
+	VgraphicsPipeline = vk::raii::Pipeline(VlogicalDevice, nullptr, pipelineInfo);
+	logger.logInformation("Pipeline created");
 }
 
 void Renderer::createVCommandPool() {

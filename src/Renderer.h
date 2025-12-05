@@ -7,6 +7,8 @@
 #include <vector>
 #include <cstring>
 #include <map>
+#include <string>
+#include "Logger.h"
 
 class Renderer {
 public:
@@ -26,9 +28,11 @@ private:
 		vk::PresentModeKHR getPresentMode(std::vector<vk::PresentModeKHR> const& presentModes, Renderer const& renderer) const;
 		vk::Extent2D getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
+		const std::vector<char> readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const;
 	};
 
 	const Helper helper{};
+	const Logger logger{};
 
 	const int WINDOW_WIDTH = ~0;
 	const int WINDOW_HEIGHT = ~0;

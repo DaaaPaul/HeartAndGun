@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include <iostream>
 #include <map>
+#include <fstream>
 #include <string>
 
 const std::vector<const char*> Renderer::Helper::verifyValidationLayers(Renderer const& renderer) const {
@@ -18,7 +19,7 @@ const std::vector<const char*> Renderer::Helper::verifyValidationLayers(Renderer
 		}
 
 		if (!layerFound) throw std::runtime_error("Required validation layer not supported:" + std::string(renderer.VALIDATION_LAYERS[i]));
-		else std::cout << "Required validation layer supported:" << renderer.VALIDATION_LAYERS[i] << '\n';
+		else renderer.logger.logInformation("\tRequired validation layer supported:" + std::string(renderer.VALIDATION_LAYERS[i]));
 	}
 
 	return renderer.VALIDATION_LAYERS;
@@ -42,7 +43,7 @@ const char** Renderer::Helper::verifyGlfwExtensionsPresent(Renderer const& rende
 		}
 
 		if (!extensionFound)  throw std::runtime_error("Required extension by glfw not supported:" + std::string(requiredExtensions[i]));
-		else std::cout << "Required extension by glfw supported:" << requiredExtensions[i] << '\n';
+		else renderer.logger.logInformation("\tRequired extension by glfw supported:" + std::string(requiredExtensions[i]));
 	}
 
 	return requiredExtensions;
@@ -96,7 +97,7 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 
 			for (vk::ExtensionProperties const& property : extensionProperties) {
 				if (strcmp(property.extensionName, requiredExtension) == 0) {
-					std::cout << "Required physical device extension supported:" << requiredExtension << '\n';
+					renderer.logger.logInformation("\tRequired physical device extension supported:" + std::string(requiredExtension));
 					foundThisOne = true;
 					break;
 				}
@@ -173,4 +174,17 @@ uint32_t Renderer::Helper::getSwapchainImageCount(vk::SurfaceCapabilitiesKHR con
 	}
 
 	return minImageCount;
+}
+
+const std::vector<char> Renderer::Helper::readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const {
+	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+	if(!file.good()) {
+		renderer.logger.logError("Something went wrong with reading spriv file at " + filePath);
+	}
+
+	std::vector<char> buffer(file.tellg());
+	file.seekg(0, std::ios::beg);
+	file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+
+	return buffer;
 }
