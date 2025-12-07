@@ -14,8 +14,8 @@ class Renderer {
 public:
 	void run();
 
-	Renderer(int const& width, int const& height, bool const& enable) : 
-		WINDOW_WIDTH(width), WINDOW_HEIGHT(height), ENABLE_VALIDATION_LAYER(enable) {}
+	Renderer(int const& width, int const& height, bool const& enable, uint32_t const& framesInFlight) : 
+		WINDOW_WIDTH(width), WINDOW_HEIGHT(height), ENABLE_VALIDATION_LAYER(enable), FRAMES_IN_FLIGHT(framesInFlight) {}
 
 private:
 	class Helper {
@@ -29,6 +29,11 @@ private:
 		vk::Extent2D getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 		const std::vector<char> readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const;
+		void transitionImageLayout(vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout, 
+								   vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask, 
+								   vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
+								   Renderer const& renderer) const;
+		void recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const;
 	};
 
 	const Helper helper{};
@@ -36,6 +41,7 @@ private:
 
 	const int WINDOW_WIDTH = ~0;
 	const int WINDOW_HEIGHT = ~0;
+	const uint32_t FRAMES_IN_FLIGHT = ~0;
 	const bool ENABLE_VALIDATION_LAYER = true;
 
 	const std::vector<const char*> VALIDATION_LAYERS = {
@@ -71,6 +77,8 @@ private:
 	std::vector<vk::raii::Semaphore> VrenderReady{};
 	std::vector<vk::raii::Semaphore> VrenderDone{};
 	std::vector<vk::raii::Fence> VcommandBufferCompleted{};
+
+	uint32_t frameInFlight = 0;
 
 	void createWindow();
 	void initializeVulkan();

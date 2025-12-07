@@ -188,3 +188,64 @@ const std::vector<char> Renderer::Helper::readSprivFileBytes(std::string const& 
 
 	return buffer;
 }
+
+void Renderer::Helper::transitionImageLayout(vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout, 
+											 vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask, 
+											 vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
+											 Renderer const& renderer) const {
+	vk::ImageMemoryBarrier2 barrier = {
+		.srcStageMask = srcStageMask,
+		.srcAccessMask = srcAccessMask,
+		.dstStageMask = dstStageMask,
+		.dstAccessMask = dstAccessMask,
+		.oldLayout = oldLayout,
+		.newLayout = newLayout,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = renderer.Vswapchain.getImages()[renderer.frameInFlight],
+		.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
+	};
+
+	vk::DependencyInfo dependencyInfo = {
+		.dependencyFlags = {},
+		.imageMemoryBarrierCount = 1,
+		.pImageMemoryBarriers = &barrier
+	};
+
+	renderer.VcommandBuffers[renderer.frameInFlight].pipelineBarrier2(dependencyInfo);
+}
+
+void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const {
+	renderer.VcommandBuffers[renderer.frameInFlight].begin({});
+
+	transitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+		vk::PipelineStageFlagBits2::eTopOfPipe, {},
+		vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, 
+		renderer);
+
+	vk::RenderingAttachmentInfo colorAttachmentInfo = {
+		.imageView = renderer.VimageViews[renderer.frameInFlight],
+		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+		.loadOp = vk::AttachmentLoadOp::eClear,
+		.storeOp = vk::AttachmentStoreOp::eStore,
+		.clearValue = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f)
+	};
+	vk::RenderingInfo renderingInfo = {
+		.renderArea = vk::Rect2D(vk::Offset2D(0,0), renderer.extent),
+		.layerCount = 1,
+		.colorAttachmentCount = 1,
+		.pColorAttachments = &colorAttachmentInfo
+	};
+
+	renderer.VcommandBuffers[renderer.frameInFlight].beginRendering(renderingInfo);
+	renderer.VcommandBuffers[renderer.frameInFlight].bindPipeline(vk::PipelineBindPoint::eGraphics, renderer.VgraphicsPipeline);
+	renderer.VcommandBuffers[renderer.frameInFlight].draw(3, 1, 0, 0);
+	renderer.VcommandBuffers[renderer.frameInFlight].endRendering();
+
+	transitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+		vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+		vk::PipelineStageFlagBits2::eBottomOfPipe, {},
+		renderer);
+
+	renderer.VcommandBuffers[renderer.frameInFlight].end();
+}
