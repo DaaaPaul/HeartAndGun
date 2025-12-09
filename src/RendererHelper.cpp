@@ -179,7 +179,7 @@ uint32_t Renderer::Helper::getSwapchainImageCount(vk::SurfaceCapabilitiesKHR con
 const std::vector<char> Renderer::Helper::readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const {
 	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 	if(!file.good()) {
-		renderer.logger.logError("Something went wrong with reading spriv file at " + filePath);
+		throw std::runtime_error("Something went wrong with reading spriv file at " + filePath);
 	}
 
 	std::vector<char> buffer(file.tellg());
@@ -189,7 +189,8 @@ const std::vector<char> Renderer::Helper::readSprivFileBytes(std::string const& 
 	return buffer;
 }
 
-void Renderer::Helper::transitionImageLayout(vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout, 
+void Renderer::Helper::transitionImageLayout(uint32_t const& imageIndex,
+											 vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout, 
 											 vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask, 
 											 vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
 											 Renderer const& renderer) const {
@@ -202,7 +203,7 @@ void Renderer::Helper::transitionImageLayout(vk::ImageLayout const& oldLayout, v
 		.newLayout = newLayout,
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = renderer.Vswapchain.getImages()[renderer.frameInFlight],
+		.image = renderer.Vswapchain.getImages()[imageIndex],
 		.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
 	};
 
@@ -218,17 +219,18 @@ void Renderer::Helper::transitionImageLayout(vk::ImageLayout const& oldLayout, v
 void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const {
 	renderer.VcommandBuffers[renderer.frameInFlight].begin({});
 
-	transitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+	transitionImageLayout(imageIndex,
+		vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::PipelineStageFlagBits2::eTopOfPipe, {},
 		vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite, 
 		renderer);
 
 	vk::RenderingAttachmentInfo colorAttachmentInfo = {
-		.imageView = renderer.VimageViews[renderer.frameInFlight],
+		.imageView = renderer.VimageViews[imageIndex],
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 		.loadOp = vk::AttachmentLoadOp::eClear,
 		.storeOp = vk::AttachmentStoreOp::eStore,
-		.clearValue = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f)
+		.clearValue = vk::ClearColorValue(0.3f, 0.3f, 0.3f, 1.0f)
 	};
 	vk::RenderingInfo renderingInfo = {
 		.renderArea = vk::Rect2D(vk::Offset2D(0,0), renderer.extent),
@@ -242,7 +244,8 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 	renderer.VcommandBuffers[renderer.frameInFlight].draw(3, 1, 0, 0);
 	renderer.VcommandBuffers[renderer.frameInFlight].endRendering();
 
-	transitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
+	transitionImageLayout(imageIndex,
+		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
 		vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
 		vk::PipelineStageFlagBits2::eBottomOfPipe, {},
 		renderer);

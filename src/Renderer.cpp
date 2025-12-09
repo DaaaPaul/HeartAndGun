@@ -40,10 +40,10 @@ void Renderer::initializeVulkan() {
 }
 
 void Renderer::drawFrame() {
-	std::pair<vk::Result, uint32_t> imagePair = Vswapchain.acquireNextImage(UINT64_MAX, *VrenderReady[frameInFlight], nullptr);
-
-	while(VlogicalDevice.waitForFences(*VcommandBufferCompleted[frameInFlight], vk::True, UINT64_MAX) == vk::Result::eTimeout);
+	while (VlogicalDevice.waitForFences(*VcommandBufferCompleted[frameInFlight], vk::True, UINT64_MAX) == vk::Result::eTimeout);
 	VlogicalDevice.resetFences(*VcommandBufferCompleted[frameInFlight]);
+
+	std::pair<vk::Result, uint32_t> imagePair = Vswapchain.acquireNextImage(UINT64_MAX, *VrenderReady[semaphoreIndex], nullptr);
 
 	VcommandBuffers[frameInFlight].reset();
 	helper.recordCommandBuffer(imagePair.second, *this);
@@ -51,18 +51,18 @@ void Renderer::drawFrame() {
 	vk::PipelineStageFlags waitMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 	vk::SubmitInfo submitCommandBuffer = {
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*VrenderReady[frameInFlight],
+		.pWaitSemaphores = &*VrenderReady[semaphoreIndex],
 		.pWaitDstStageMask = &waitMask,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &*VcommandBuffers[frameInFlight],
 		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &*VrenderDone[frameInFlight]
+		.pSignalSemaphores = &*VrenderDone[semaphoreIndex]
 	};
 	VgraphicsQueue.submit(submitCommandBuffer, *VcommandBufferCompleted[frameInFlight]);
 
 	vk::PresentInfoKHR presentInfo = {
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*VrenderDone[frameInFlight],
+		.pWaitSemaphores = &*VrenderDone[semaphoreIndex],
 		.swapchainCount = 1,
 		.pSwapchains = &*Vswapchain,
 		.pImageIndices = &imagePair.second
@@ -70,12 +70,24 @@ void Renderer::drawFrame() {
 	VgraphicsQueue.presentKHR(presentInfo);
 
 	frameInFlight = (frameInFlight + 1) % FRAMES_IN_FLIGHT;
+	semaphoreIndex = (semaphoreIndex + 1) % Vswapchain.getImages().size();
 }
 
 void Renderer::mainLoop() {
+	uint32_t nextSecond = 1;
+	uint32_t framesInSecond = 0;
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 		drawFrame();
+
+		if (glfwGetTime() <= nextSecond) {
+			++framesInSecond;
+		} else {
+			std::cout << "FPS:" << framesInSecond << '\n';
+			++nextSecond;
+			framesInSecond = 0;
+		}
 	}
 	VlogicalDevice.waitIdle();
 
@@ -211,7 +223,7 @@ void Renderer::createVSwapchain() {
 	};
 
 	Vswapchain = vk::raii::SwapchainKHR(VlogicalDevice, swapchainCreateInfo);
-	logger.logInformation("Created swapchain");
+	logger.logInformation("Created swapchain with " + std::to_string(Vswapchain.getImages().size()) + " images");
 }
 
 void Renderer::createVImageViews() {
@@ -366,11 +378,15 @@ void Renderer::createVCommandBuffers() {
 }
 
 void Renderer::createVSyncObjects() {
-	for(uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
+	for(uint32_t i = 0; i < Vswapchain.getImages().size(); ++i) {
 		VrenderReady.push_back(vk::raii::Semaphore(VlogicalDevice, vk::SemaphoreCreateInfo()));
 		VrenderDone.push_back(vk::raii::Semaphore(VlogicalDevice, vk::SemaphoreCreateInfo()));
+	}
+
+	for(uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
 		VcommandBufferCompleted.push_back(vk::raii::Fence(VlogicalDevice, { .flags = vk::FenceCreateFlagBits::eSignaled }));
 	}
 
-	logger.logInformation(std::string("Command pool, command buffers, and sync objects created (Frames in flight:") + std::to_string(FRAMES_IN_FLIGHT) + ")");
+	logger.logInformation(std::string("Command pool, command buffers, and sync objects created (Frames in flight:") + 
+		std::to_string(FRAMES_IN_FLIGHT) + ", semaphores:" + std::to_string(VrenderDone.size()) + ")");
 }
