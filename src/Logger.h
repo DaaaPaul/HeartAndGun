@@ -8,6 +8,7 @@
 class Logger {
 public:
 	void logInformation(std::string const& msg) const;
+	void logSpecial(std::string const& msg) const;
 	void logError(std::string const& msg) const;
 };
 

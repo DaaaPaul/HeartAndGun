@@ -5,7 +5,7 @@
 #include <string>
 
 const std::vector<const char*> Renderer::Helper::verifyValidationLayers(Renderer const& renderer) const {
-	std::vector<vk::LayerProperties> layerProperties = renderer.Vcontext.enumerateInstanceLayerProperties();
+	std::vector<vk::LayerProperties> layerProperties = renderer.context.enumerateInstanceLayerProperties();
 
 	bool layerFound = false;
 	for (uint32_t i = 0; i < renderer.VALIDATION_LAYERS.size(); ++i) {
@@ -19,17 +19,17 @@ const std::vector<const char*> Renderer::Helper::verifyValidationLayers(Renderer
 		}
 
 		if (!layerFound) throw std::runtime_error("Required validation layer not supported:" + std::string(renderer.VALIDATION_LAYERS[i]));
-		else renderer.logger.logInformation("\tRequired validation layer supported:" + std::string(renderer.VALIDATION_LAYERS[i]));
+		else renderer.LOGGER.logInformation("\tRequired validation layer supported:" + std::string(renderer.VALIDATION_LAYERS[i]));
 	}
 
 	return renderer.VALIDATION_LAYERS;
 }
 
-const char** Renderer::Helper::verifyGlfwExtensionsPresent(Renderer const& renderer) const {
+std::pair<const char**, uint32_t> Renderer::Helper::verifyGlfwExtensionsPresent(Renderer const& renderer) const {
 	uint32_t requiredExtensionsCount = ~0;
 	const char** requiredExtensions = glfwGetRequiredInstanceExtensions(&requiredExtensionsCount);
 
-	std::vector<vk::ExtensionProperties> extensionProperties = renderer.Vcontext.enumerateInstanceExtensionProperties();
+	std::vector<vk::ExtensionProperties> extensionProperties = renderer.context.enumerateInstanceExtensionProperties();
 
 	bool extensionFound = false;
 	for (uint32_t i = 0; i < requiredExtensionsCount; ++i) {
@@ -43,10 +43,10 @@ const char** Renderer::Helper::verifyGlfwExtensionsPresent(Renderer const& rende
 		}
 
 		if (!extensionFound)  throw std::runtime_error("Required extension by glfw not supported:" + std::string(requiredExtensions[i]));
-		else renderer.logger.logInformation("\tRequired extension by glfw supported:" + std::string(requiredExtensions[i]));
+		else renderer.LOGGER.logInformation("\tRequired extension by glfw supported:" + std::string(requiredExtensions[i]));
 	}
 
-	return requiredExtensions;
+	return { requiredExtensions, requiredExtensionsCount };
 }
 
 std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const {
@@ -81,7 +81,7 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 			vk::PhysicalDeviceVulkan13Features, 
 			vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
 		if(requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
-			requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
+		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
 		requiredFeaturesAvailability.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState) {
 			physicalDeviceAbilities.push_back(1);
@@ -97,7 +97,7 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 
 			for (vk::ExtensionProperties const& property : extensionProperties) {
 				if (strcmp(property.extensionName, requiredExtension) == 0) {
-					renderer.logger.logInformation("\tRequired physical device extension supported:" + std::string(requiredExtension));
+					renderer.LOGGER.logInformation("\tRequired physical device extension supported:" + std::string(requiredExtension));
 					foundThisOne = true;
 					break;
 				}
@@ -117,9 +117,9 @@ std::vector<uint32_t> Renderer::Helper::grokPhysicalDevices(std::vector<vk::raii
 }
 
 uint32_t Renderer::Helper::findGraphicsQueueFamilyIndex(std::vector<vk::QueueFamilyProperties> const& queueFamilyProperties, Renderer const& renderer) const {
-	int i = 0;
+	uint32_t i = 0;
 	for(vk::QueueFamilyProperties const& qfProperties : queueFamilyProperties) {
-		if ((qfProperties.queueFlags & vk::QueueFlagBits::eGraphics) && renderer.VphysicalDevice.getSurfaceSupportKHR(i, renderer.Vsurface)) {
+		if ((qfProperties.queueFlags & vk::QueueFlagBits::eGraphics) && renderer.physicalDevice.getSurfaceSupportKHR(i, renderer.surface)) {
 			return i;
 		}
 		++i;
@@ -203,7 +203,7 @@ void Renderer::Helper::transitionImageLayout(uint32_t const& imageIndex,
 		.newLayout = newLayout,
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = renderer.Vswapchain.getImages()[imageIndex],
+		.image = renderer.swapchain.getImages()[imageIndex],
 		.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
 	};
 
@@ -213,11 +213,11 @@ void Renderer::Helper::transitionImageLayout(uint32_t const& imageIndex,
 		.pImageMemoryBarriers = &barrier
 	};
 
-	renderer.VcommandBuffers[renderer.frameInFlight].pipelineBarrier2(dependencyInfo);
+	renderer.commandBuffers[renderer.frameInFlight].pipelineBarrier2(dependencyInfo);
 }
 
 void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const {
-	renderer.VcommandBuffers[renderer.frameInFlight].begin({});
+	renderer.commandBuffers[renderer.frameInFlight].begin({});
 
 	transitionImageLayout(imageIndex,
 		vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
@@ -226,7 +226,7 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 		renderer);
 
 	vk::RenderingAttachmentInfo colorAttachmentInfo = {
-		.imageView = renderer.VimageViews[imageIndex],
+		.imageView = renderer.imageViews[imageIndex],
 		.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 		.loadOp = vk::AttachmentLoadOp::eClear,
 		.storeOp = vk::AttachmentStoreOp::eStore,
@@ -239,10 +239,10 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 		.pColorAttachments = &colorAttachmentInfo
 	};
 
-	renderer.VcommandBuffers[renderer.frameInFlight].beginRendering(renderingInfo);
-	renderer.VcommandBuffers[renderer.frameInFlight].bindPipeline(vk::PipelineBindPoint::eGraphics, renderer.VgraphicsPipeline);
-	renderer.VcommandBuffers[renderer.frameInFlight].draw(3, 1, 0, 0);
-	renderer.VcommandBuffers[renderer.frameInFlight].endRendering();
+	renderer.commandBuffers[renderer.frameInFlight].beginRendering(renderingInfo);
+	renderer.commandBuffers[renderer.frameInFlight].bindPipeline(vk::PipelineBindPoint::eGraphics, renderer.graphicsPipeline);
+	renderer.commandBuffers[renderer.frameInFlight].draw(3, 1, 0, 0);
+	renderer.commandBuffers[renderer.frameInFlight].endRendering();
 
 	transitionImageLayout(imageIndex,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
@@ -250,5 +250,5 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 		vk::PipelineStageFlagBits2::eBottomOfPipe, {},
 		renderer);
 
-	renderer.VcommandBuffers[renderer.frameInFlight].end();
+	renderer.commandBuffers[renderer.frameInFlight].end();
 }

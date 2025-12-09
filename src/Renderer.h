@@ -8,6 +8,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <utility>
 #include "Logger.h"
 
 class Renderer {
@@ -21,24 +22,34 @@ private:
 	class Helper {
 	public:
 		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
-		const char** verifyGlfwExtensionsPresent(Renderer const& renderer) const;
+		
+		std::pair<const char**, uint32_t> verifyGlfwExtensionsPresent(Renderer const& renderer) const;
+		
 		std::vector<uint32_t> grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const;
+		
 		uint32_t findGraphicsQueueFamilyIndex(std::vector<vk::QueueFamilyProperties> const& queueFamilyProperties, Renderer const& renderer) const;
+		
 		vk::SurfaceFormatKHR getSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& surfaceFormats, Renderer const& renderer) const;
+		
 		vk::PresentModeKHR getPresentMode(std::vector<vk::PresentModeKHR> const& presentModes, Renderer const& renderer) const;
+		
 		vk::Extent2D getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
+		
 		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
+		
 		const std::vector<char> readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const;
-		void transitionImageLayout(uint32_t const& imageIndex, 
-								   vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout,
-								   vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask, 
-								   vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
-								   Renderer const& renderer) const;
+		
+		void transitionImageLayout(uint32_t const& imageIndex,
+			vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout,
+			vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask,
+			vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
+			Renderer const& renderer) const;
+		
 		void recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const;
 	};
 
-	const Helper helper{};
-	const Logger logger{};
+	const Helper HELPER{};
+	const Logger LOGGER{};
 
 	const int WINDOW_WIDTH = ~0;
 	const int WINDOW_HEIGHT = ~0;
@@ -64,40 +75,37 @@ private:
 	uint32_t swapchainImageCount = ~0;
 
 	GLFWwindow* window = nullptr;
-	vk::raii::Context Vcontext{};
-	vk::raii::Instance Vinstance = nullptr;
-	vk::raii::SurfaceKHR Vsurface = nullptr;
-	vk::raii::PhysicalDevice VphysicalDevice = nullptr;
-	vk::raii::Device VlogicalDevice = nullptr;
-	vk::raii::Queue VgraphicsQueue = nullptr;
-	vk::raii::SwapchainKHR Vswapchain = nullptr;
-	std::vector<vk::raii::ImageView> VimageViews{};
-	vk::raii::Pipeline VgraphicsPipeline = nullptr;
-	vk::raii::CommandPool VcommandPool = nullptr;
-	std::vector<vk::raii::CommandBuffer> VcommandBuffers{};
-	std::vector<vk::raii::Semaphore> VrenderReady{};
-	std::vector<vk::raii::Semaphore> VrenderDone{};
-	std::vector<vk::raii::Fence> VcommandBufferCompleted{};
+	vk::raii::Context context{};
+	vk::raii::Instance instance = nullptr;
+	vk::raii::SurfaceKHR surface = nullptr;
+	vk::raii::PhysicalDevice physicalDevice = nullptr;
+	vk::raii::Device logicalDevice = nullptr;
+	vk::raii::Queue graphicsQueue = nullptr;
+	vk::raii::SwapchainKHR swapchain = nullptr;
+	std::vector<vk::raii::ImageView> imageViews{};
+	vk::raii::Pipeline graphicsPipeline = nullptr;
+	vk::raii::CommandPool commandPool = nullptr;
+	std::vector<vk::raii::CommandBuffer> commandBuffers{};
+	std::vector<vk::raii::Semaphore> renderReady{};
+	std::vector<vk::raii::Semaphore> renderDone{};
+	std::vector<vk::raii::Fence> commandBufferDone{};
 
-	uint32_t frameInFlight = 0;
-	uint32_t semaphoreIndex = 0;
+	uint32_t frameInFlight = ~0;
+	uint32_t semaphoreIndex = ~0;
 
 	void createWindow();
 	void initializeVulkan();
-	void clean();
-	void mainLoop();
-
-	void createVInstance();
-	void createVSurface();
-	void selectVPhysicalDevice();
-	void createVLogicalDevice();
-	void createVQueue();
-	void createVSwapchain();
-	void createVImageViews();
-	void createVGraphicsPipeline();
-	void createVCommandPool();
-	void createVCommandBuffers();
-	void createVSyncObjects();
-
+	void createInstance();
+	void createSurface();
+	void selectPhysicalDevice();
+	void createLogicalDevice();
+	void createSwapchain();
+	void createImageViews();
+	void createGraphicsPipeline();
+	void createCommandPool();
+	void createCommandBuffers();
+	void createSyncObjects();
 	void drawFrame();
+	void mainLoop();
+	void clean();
 };

@@ -11,150 +11,85 @@ void Renderer::run() {
 
 void Renderer::createWindow() {
 	glfwInit();
-
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
 	window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Heart And Gun", nullptr, nullptr);
 
 	if (window == NULL) throw std::runtime_error("Window creation failed!");
-
-	logger.logInformation("GLFW window created");
+	LOGGER.logInformation("GLFW window created");
 }
 
 void Renderer::initializeVulkan() {
-	createVInstance();
-	createVSurface();
-	selectVPhysicalDevice();
-	createVLogicalDevice();
-	createVQueue();
-	createVSwapchain();
-	createVImageViews();
-	createVGraphicsPipeline();
-	createVCommandPool();
-	createVCommandBuffers();
-	createVSyncObjects();
+	createInstance();
+	createSurface();
+	selectPhysicalDevice();
+	createLogicalDevice();
+	createSwapchain();
+	createImageViews();
+	createGraphicsPipeline();
+	createCommandPool();
+	createCommandBuffers();
+	createSyncObjects();
 
-	logger.logInformation("-------------------------------------------------------------------------------------------------------\n"
+	LOGGER.logInformation("-------------------------------------------------------------------------------------------------------\n"
 						  "FINISHED VULKAN INITIALIZATION\n"
 						  "-------------------------------------------------------------------------------------------------------");
 }
 
-void Renderer::drawFrame() {
-	while (VlogicalDevice.waitForFences(*VcommandBufferCompleted[frameInFlight], vk::True, UINT64_MAX) == vk::Result::eTimeout);
-	VlogicalDevice.resetFences(*VcommandBufferCompleted[frameInFlight]);
-
-	std::pair<vk::Result, uint32_t> imagePair = Vswapchain.acquireNextImage(UINT64_MAX, *VrenderReady[semaphoreIndex], nullptr);
-
-	VcommandBuffers[frameInFlight].reset();
-	helper.recordCommandBuffer(imagePair.second, *this);
-
-	vk::PipelineStageFlags waitMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-	vk::SubmitInfo submitCommandBuffer = {
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*VrenderReady[semaphoreIndex],
-		.pWaitDstStageMask = &waitMask,
-		.commandBufferCount = 1,
-		.pCommandBuffers = &*VcommandBuffers[frameInFlight],
-		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &*VrenderDone[semaphoreIndex]
-	};
-	VgraphicsQueue.submit(submitCommandBuffer, *VcommandBufferCompleted[frameInFlight]);
-
-	vk::PresentInfoKHR presentInfo = {
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*VrenderDone[semaphoreIndex],
-		.swapchainCount = 1,
-		.pSwapchains = &*Vswapchain,
-		.pImageIndices = &imagePair.second
-	};
-	VgraphicsQueue.presentKHR(presentInfo);
-
-	frameInFlight = (frameInFlight + 1) % FRAMES_IN_FLIGHT;
-	semaphoreIndex = (semaphoreIndex + 1) % Vswapchain.getImages().size();
-}
-
-void Renderer::mainLoop() {
-	uint32_t nextSecond = 1;
-	uint32_t framesInSecond = 0;
-
-	while (!glfwWindowShouldClose(window)) {
-		glfwPollEvents();
-		drawFrame();
-
-		if (glfwGetTime() <= nextSecond) {
-			++framesInSecond;
-		} else {
-			std::cout << "FPS:" << framesInSecond << '\n';
-			++nextSecond;
-			framesInSecond = 0;
-		}
-	}
-	VlogicalDevice.waitIdle();
-
-	clean();
-}
-
-void Renderer::clean() {
-	glfwDestroyWindow(window);
-	glfwTerminate();
-}
-
-void Renderer::createVInstance() {
-	const char** requiredGlfwExtensions = helper.verifyGlfwExtensionsPresent(*this);
-	uint32_t requiredGlfwExtensionsCount = ~0;
-	glfwGetRequiredInstanceExtensions(&requiredGlfwExtensionsCount);
+void Renderer::createInstance() {
+	std::pair<const char**, uint32_t> requiredGlfwExtensions = HELPER.verifyGlfwExtensionsPresent(*this);
 
 	vk::ApplicationInfo appInfo = {
-	.apiVersion = vk::ApiVersion14
+		.apiVersion = vk::ApiVersion14
 	};
-
-	if(ENABLE_VALIDATION_LAYER) {
-		const std::vector<const char*> validationLayers = helper.verifyValidationLayers(*this);
+	
+	if (ENABLE_VALIDATION_LAYER) {
+		const std::vector<const char*> validationLayers = HELPER.verifyValidationLayers(*this);
 
 		vk::InstanceCreateInfo instanceCreateInfo = {
 			.pApplicationInfo = &appInfo,
 			.enabledLayerCount = static_cast<uint32_t>(validationLayers.size()),
 			.ppEnabledLayerNames = validationLayers.data(),
-			.enabledExtensionCount = requiredGlfwExtensionsCount,
-			.ppEnabledExtensionNames = requiredGlfwExtensions,
+			.enabledExtensionCount = requiredGlfwExtensions.second,
+			.ppEnabledExtensionNames = requiredGlfwExtensions.first,
 		};
-
-		Vinstance = vk::raii::Instance(Vcontext, instanceCreateInfo);
+		instance = vk::raii::Instance(context, instanceCreateInfo);
 	} else {
 		vk::InstanceCreateInfo instanceCreateInfo = {
 			.pApplicationInfo = &appInfo,
-			.enabledExtensionCount = requiredGlfwExtensionsCount,
-			.ppEnabledExtensionNames = requiredGlfwExtensions
+			.enabledExtensionCount = requiredGlfwExtensions.second,
+			.ppEnabledExtensionNames = requiredGlfwExtensions.first
 		};
-
-		Vinstance = vk::raii::Instance(Vcontext, instanceCreateInfo);
+		instance = vk::raii::Instance(context, instanceCreateInfo);
 	}
 
-	logger.logInformation("Vulkan instance created");
+	LOGGER.logInformation("Vulkan instance created");
 }
 
-void Renderer::createVSurface() {
+void Renderer::createSurface() {
 	VkSurfaceKHR tempSurface;
+	glfwCreateWindowSurface(*instance, window, nullptr, &tempSurface);
+	surface = vk::raii::SurfaceKHR(instance, tempSurface);
 
-	glfwCreateWindowSurface(*Vinstance, window, nullptr, &tempSurface);
-
-	Vsurface = vk::raii::SurfaceKHR(Vinstance, tempSurface);
-
-	logger.logInformation("Vulkan surface created");
+	LOGGER.logInformation("Vulkan surface created");
 }
 
-void Renderer::selectVPhysicalDevice() {
-	std::vector<uint32_t> physicalDeviceAbilitiesInFour = helper.grokPhysicalDevices(Vinstance.enumeratePhysicalDevices(), *this);
+void Renderer::selectPhysicalDevice() {
+	std::vector<uint32_t> physicalDeviceAbilitiesInFour = HELPER.grokPhysicalDevices(instance.enumeratePhysicalDevices(), *this);
+
+	if ((physicalDeviceAbilitiesInFour.size() % 4) != 0) {
+		throw std::runtime_error("Something went wrong with GPU selection");
+	}
 
 	bool foundOne = false;
 	for(uint32_t i = 0; i < physicalDeviceAbilitiesInFour.size(); i += 4) {
-		if( physicalDeviceAbilitiesInFour[i] &&
-		    physicalDeviceAbilitiesInFour[i + 1] &&
-		    physicalDeviceAbilitiesInFour[i + 2] &&
-			physicalDeviceAbilitiesInFour[i + 3]) {
-			VphysicalDevice = Vinstance.enumeratePhysicalDevices()[i / 4];
-			logger.logInformation("Selected physical device (" + std::string(VphysicalDevice.getProperties().deviceName.data()) + ")");
+		if( (physicalDeviceAbilitiesInFour[i + 0] == 1) &&
+			(physicalDeviceAbilitiesInFour[i + 1] == 1) &&
+			(physicalDeviceAbilitiesInFour[i + 2] == 1) &&
+			(physicalDeviceAbilitiesInFour[i + 3] == 1)) {
+			physicalDevice = instance.enumeratePhysicalDevices()[i / 4];
+			LOGGER.logInformation("Selected physical device (" + std::string(physicalDevice.getProperties().deviceName.data()) + ")");
 			foundOne = true;
+			break;
 		}
 	}
 
@@ -163,7 +98,7 @@ void Renderer::selectVPhysicalDevice() {
 	}
 }
 
-void Renderer::createVLogicalDevice() {
+void Renderer::createLogicalDevice() {
 	vk::StructureChain<vk::PhysicalDeviceFeatures2,
 		vk::PhysicalDeviceVulkan11Features,
 		vk::PhysicalDeviceVulkan13Features,
@@ -173,8 +108,8 @@ void Renderer::createVLogicalDevice() {
 		{.synchronization2 = true, .dynamicRendering = true, },
 		{.extendedDynamicState = true}	};
 
-	std::vector<vk::QueueFamilyProperties> queueFamilyProperties = VphysicalDevice.getQueueFamilyProperties();
-	graphicsFamilyIndex = helper.findGraphicsQueueFamilyIndex(queueFamilyProperties, *this);
+	std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+	graphicsFamilyIndex = HELPER.findGraphicsQueueFamilyIndex(queueFamilyProperties, *this);
 
 	float arbitraryPriority = 0.5f;
 	vk::DeviceQueueCreateInfo queueCreateInfo = {
@@ -191,22 +126,19 @@ void Renderer::createVLogicalDevice() {
 		.ppEnabledExtensionNames = REQUIRED_DEVICE_EXTENSIONS.data()
 	};
 
-	VlogicalDevice = vk::raii::Device(VphysicalDevice, logicalDeviceCreateInfo);
-	logger.logInformation("Created logical device");
+	logicalDevice = vk::raii::Device(physicalDevice, logicalDeviceCreateInfo);
+	graphicsQueue = vk::raii::Queue(logicalDevice, graphicsFamilyIndex, 0);
+	LOGGER.logInformation("Created logical device");
 }
 
-void Renderer::createVQueue() {
-	VgraphicsQueue = vk::raii::Queue(VlogicalDevice, graphicsFamilyIndex, 0);
-}
-
-void Renderer::createVSwapchain() {
-	surfaceFormat = helper.getSurfaceFormat(VphysicalDevice.getSurfaceFormatsKHR(Vsurface), *this);
-	presentMode = helper.getPresentMode(VphysicalDevice.getSurfacePresentModesKHR(Vsurface), *this);
-	extent = helper.getSurfaceExtent(VphysicalDevice.getSurfaceCapabilitiesKHR(Vsurface), *this);
-	swapchainImageCount = helper.getSwapchainImageCount(VphysicalDevice.getSurfaceCapabilitiesKHR(Vsurface), *this);
+void Renderer::createSwapchain() {
+	surfaceFormat = HELPER.getSurfaceFormat(physicalDevice.getSurfaceFormatsKHR(surface), *this);
+	presentMode = HELPER.getPresentMode(physicalDevice.getSurfacePresentModesKHR(surface), *this);
+	extent = HELPER.getSurfaceExtent(physicalDevice.getSurfaceCapabilitiesKHR(surface), *this);
+	swapchainImageCount = HELPER.getSwapchainImageCount(physicalDevice.getSurfaceCapabilitiesKHR(surface), *this);
 
 	vk::SwapchainCreateInfoKHR swapchainCreateInfo = {
-		.surface = Vsurface,
+		.surface = surface,
 		.minImageCount = swapchainImageCount,
 		.imageFormat = surfaceFormat.format,
 		.imageColorSpace = surfaceFormat.colorSpace,
@@ -222,35 +154,37 @@ void Renderer::createVSwapchain() {
 		.clipped = true
 	};
 
-	Vswapchain = vk::raii::SwapchainKHR(VlogicalDevice, swapchainCreateInfo);
-	logger.logInformation("Created swapchain with " + std::to_string(Vswapchain.getImages().size()) + " images");
+	swapchain = vk::raii::SwapchainKHR(logicalDevice, swapchainCreateInfo);
+	swapchainImageCount = swapchain.getImages().size();
+	LOGGER.logInformation("Created swapchain with " + std::to_string(swapchainImageCount) + " images");
 }
 
-void Renderer::createVImageViews() {
-	std::vector<vk::Image> images = Vswapchain.getImages();
+void Renderer::createImageViews() {
+	std::vector<vk::Image> images = swapchain.getImages();
 
 	vk::ImageViewCreateInfo imageViewCreateInfo = {
-		.image = images[0],
+		.image = {},
 		.viewType = vk::ImageViewType::e2D,
 		.format = surfaceFormat.format,
 		.subresourceRange = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)
 	};
+
 	for(vk::Image const& image : images) {
 		imageViewCreateInfo.image = image;
 
-		VimageViews.push_back(vk::raii::ImageView(VlogicalDevice, imageViewCreateInfo));
+		imageViews.push_back(vk::raii::ImageView(logicalDevice, imageViewCreateInfo));
 	}
-	logger.logInformation("Created image views");
+	LOGGER.logInformation("Created image views");
 }
 
-void Renderer::createVGraphicsPipeline() {
+void Renderer::createGraphicsPipeline() {
 	// configurable pipeline stages (vertex and fragment shader)
-	std::vector<char> sprivBytes = helper.readSprivFileBytes("src/shaders/shaders.spv", *this);
+	std::vector<char> sprivBytes = HELPER.readSprivFileBytes("src/shaders/shaders.spv", *this);
 	vk::ShaderModuleCreateInfo shaderModuleInfo = {
 		.codeSize = sprivBytes.size() * sizeof(char),
 		.pCode = reinterpret_cast<uint32_t*>(sprivBytes.data())
 	};
-	vk::raii::ShaderModule module(VlogicalDevice, shaderModuleInfo);
+	vk::raii::ShaderModule module(logicalDevice, shaderModuleInfo);
 
 	vk::PipelineShaderStageCreateInfo vertexShaderInfo = {
 		.stage = vk::ShaderStageFlagBits::eVertex,
@@ -338,7 +272,7 @@ void Renderer::createVGraphicsPipeline() {
 		.setLayoutCount = 0,
 		.pushConstantRangeCount = 0
 	};
-	pipelineLayout = vk::raii::PipelineLayout(VlogicalDevice, pipelineLayoutInfo);
+	pipelineLayout = vk::raii::PipelineLayout(logicalDevice, pipelineLayoutInfo);
 
 	vk::GraphicsPipelineCreateInfo pipelineInfo = {
 		.pNext = &attachmentInfo,
@@ -354,39 +288,100 @@ void Renderer::createVGraphicsPipeline() {
 		.renderPass = nullptr
 	};
 
-	VgraphicsPipeline = vk::raii::Pipeline(VlogicalDevice, nullptr, pipelineInfo);
-	logger.logInformation("Pipeline created");
+	graphicsPipeline = vk::raii::Pipeline(logicalDevice, nullptr, pipelineInfo);
+	LOGGER.logInformation("Pipeline created");
 }
 
-void Renderer::createVCommandPool() {
+void Renderer::createCommandPool() {
 	vk::CommandPoolCreateInfo commandPoolCreateInfo = {
 		.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 		.queueFamilyIndex = graphicsFamilyIndex
 	};
 
-	VcommandPool = vk::raii::CommandPool(VlogicalDevice, commandPoolCreateInfo);
+	commandPool = vk::raii::CommandPool(logicalDevice, commandPoolCreateInfo);
 }
 
-void Renderer::createVCommandBuffers() {
+void Renderer::createCommandBuffers() {
 	vk::CommandBufferAllocateInfo commandBufferAllocateInfo = {
-		.commandPool = VcommandPool,
+		.commandPool = commandPool,
 		.level = vk::CommandBufferLevel::ePrimary,
 		.commandBufferCount = FRAMES_IN_FLIGHT
 	};
 
-	VcommandBuffers = vk::raii::CommandBuffers(VlogicalDevice, commandBufferAllocateInfo);
+	commandBuffers = vk::raii::CommandBuffers(logicalDevice, commandBufferAllocateInfo);
 }
 
-void Renderer::createVSyncObjects() {
-	for(uint32_t i = 0; i < Vswapchain.getImages().size(); ++i) {
-		VrenderReady.push_back(vk::raii::Semaphore(VlogicalDevice, vk::SemaphoreCreateInfo()));
-		VrenderDone.push_back(vk::raii::Semaphore(VlogicalDevice, vk::SemaphoreCreateInfo()));
+void Renderer::createSyncObjects() {
+	for(uint32_t i = 0; i < swapchainImageCount; ++i) {
+		renderReady.push_back(vk::raii::Semaphore(logicalDevice, vk::SemaphoreCreateInfo()));
+		renderDone.push_back(vk::raii::Semaphore(logicalDevice, vk::SemaphoreCreateInfo()));
 	}
 
 	for(uint32_t i = 0; i < FRAMES_IN_FLIGHT; ++i) {
-		VcommandBufferCompleted.push_back(vk::raii::Fence(VlogicalDevice, { .flags = vk::FenceCreateFlagBits::eSignaled }));
+		commandBufferDone.push_back(vk::raii::Fence(logicalDevice, { .flags = vk::FenceCreateFlagBits::eSignaled }));
 	}
 
-	logger.logInformation(std::string("Command pool, command buffers, and sync objects created (Frames in flight:") + 
-		std::to_string(FRAMES_IN_FLIGHT) + ", semaphores:" + std::to_string(VrenderDone.size()) + ")");
+	LOGGER.logInformation(std::string("Command pool, command buffers, and sync objects created (Frames in flight:") + 
+		std::to_string(FRAMES_IN_FLIGHT) + ", semaphores:" + std::to_string(renderDone.size()) + ")");
+}
+
+void Renderer::drawFrame() {
+	while (logicalDevice.waitForFences(*commandBufferDone[frameInFlight], vk::True, UINT64_MAX) == vk::Result::eTimeout);
+	logicalDevice.resetFences(*commandBufferDone[frameInFlight]);
+
+	std::pair<vk::Result, uint32_t> imagePair = swapchain.acquireNextImage(UINT64_MAX, *renderReady[semaphoreIndex], nullptr);
+
+	commandBuffers[frameInFlight].reset();
+	HELPER.recordCommandBuffer(imagePair.second, *this);
+
+	vk::PipelineStageFlags waitMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+	vk::SubmitInfo submitCommandBuffer = {
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &*renderReady[semaphoreIndex],
+		.pWaitDstStageMask = &waitMask,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &*commandBuffers[frameInFlight],
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &*renderDone[semaphoreIndex]
+	};
+	graphicsQueue.submit(submitCommandBuffer, *commandBufferDone[frameInFlight]);
+
+	vk::PresentInfoKHR presentInfo = {
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &*renderDone[semaphoreIndex],
+		.swapchainCount = 1,
+		.pSwapchains = &*swapchain,
+		.pImageIndices = &imagePair.second
+	};
+	graphicsQueue.presentKHR(presentInfo);
+
+	frameInFlight = (frameInFlight + 1) % FRAMES_IN_FLIGHT;
+	semaphoreIndex = (semaphoreIndex + 1) % swapchainImageCount;
+}
+
+void Renderer::mainLoop() {
+	frameInFlight = 0;
+	semaphoreIndex = 0;
+	uint32_t nextSecond = 1;
+	uint32_t framesInSecond = 0;
+
+	while (!glfwWindowShouldClose(window)) {
+		glfwPollEvents();
+		drawFrame();
+
+		if (glfwGetTime() <= nextSecond) {
+			++framesInSecond;
+		}
+		else {
+			LOGGER.logSpecial("FPS:" + std::to_string(framesInSecond));
+			++nextSecond;
+			framesInSecond = 0;
+		}
+	}
+	logicalDevice.waitIdle();
+}
+
+void Renderer::clean() {
+	glfwDestroyWindow(window);
+	glfwTerminate();
 }
