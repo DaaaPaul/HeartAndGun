@@ -13,9 +13,16 @@ void Renderer::createWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Heart And Gun", nullptr, nullptr);
+	glfwSetWindowUserPointer(window, this);
+	glfwSetFramebufferSizeCallback(window, framebufferResize);
 
 	if (window == NULL) throw std::runtime_error("Window creation failed!");
 	LOGGER.logInformation("GLFW window created");
+}
+
+void Renderer::framebufferResize(GLFWwindow* window, int width, int height) {
+	Renderer* renderer = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
+	renderer->framebufferResized = true;
 }
 
 void Renderer::initializeVulkan() {
@@ -318,9 +325,16 @@ void Renderer::createSyncObjects() {
 
 void Renderer::drawFrame() {
 	while (logicalDevice.waitForFences(*commandBufferDone[frameInFlight], vk::True, UINT64_MAX) == vk::Result::eTimeout);
-	logicalDevice.resetFences(*commandBufferDone[frameInFlight]);
 
 	std::pair<vk::Result, uint32_t> imagePair = swapchain.acquireNextImage(UINT64_MAX, *renderReady[semaphoreIndex], nullptr);
+
+	if ((imagePair.first == vk::Result::eErrorOutOfDateKHR) || framebufferResized) {
+		recreateSwapchain();
+		framebufferResized = false;
+		return;
+	}
+
+	logicalDevice.resetFences(*commandBufferDone[frameInFlight]);
 
 	commandBuffers[frameInFlight].reset();
 	HELPER.recordCommandBuffer(imagePair.second, *this);
@@ -344,7 +358,14 @@ void Renderer::drawFrame() {
 		.pSwapchains = &*swapchain,
 		.pImageIndices = &imagePair.second
 	};
-	graphicsQueue.presentKHR(presentInfo);
+
+	imagePair.first = graphicsQueue.presentKHR(presentInfo);
+
+	if ((imagePair.first == vk::Result::eErrorOutOfDateKHR) || framebufferResized) {
+		recreateSwapchain();
+		framebufferResized = false;
+		return;
+	}
 
 	frameInFlight = (frameInFlight + 1) % FRAMES_IN_FLIGHT;
 	semaphoreIndex = (semaphoreIndex + 1) % swapchainImageCount;
@@ -373,6 +394,39 @@ void Renderer::mainLoop() {
 }
 
 void Renderer::clean() {
+	cleanCurrentSwapchain();
+
 	glfwDestroyWindow(window);
 	glfwTerminate();
+}
+
+void Renderer::cleanCurrentSwapchain() {
+	swapchain = nullptr;
+	imageViews.clear();
+}
+
+void Renderer::cleanCurrentSyncObjects() {
+	commandBufferDone.clear();
+	renderReady.clear();
+	renderDone.clear();
+}
+
+void Renderer::recreateSwapchain() {
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	logicalDevice.waitIdle();
+
+	frameInFlight = 0;
+	semaphoreIndex = 0;
+	cleanCurrentSyncObjects();
+	cleanCurrentSwapchain();
+
+	createSwapchain();
+	createImageViews();
+	createSyncObjects();
 }

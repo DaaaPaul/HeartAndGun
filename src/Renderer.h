@@ -83,6 +83,8 @@ private:
 	uint32_t frameInFlight = ~0;
 	uint32_t semaphoreIndex = ~0;
 
+	bool framebufferResized = false;
+
 	void createWindow();
 	void initializeVulkan();
 	void createInstance();
@@ -98,4 +100,9 @@ private:
 	void drawFrame();
 	void mainLoop();
 	void clean();
+
+	static void framebufferResize(GLFWwindow* window, int width, int height);
+	void cleanCurrentSyncObjects();
+	void cleanCurrentSwapchain();
+	void recreateSwapchain();
 };
