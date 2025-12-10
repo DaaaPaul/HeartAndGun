@@ -178,7 +178,6 @@ void Renderer::createImageViews() {
 }
 
 void Renderer::createGraphicsPipeline() {
-	// configurable pipeline stages (vertex and fragment shader)
 	std::vector<char> sprivBytes = HELPER.readSprivFileBytes("src/shaders/shaders.spv", *this);
 	vk::ShaderModuleCreateInfo shaderModuleInfo = {
 		.codeSize = sprivBytes.size() * sizeof(char),
@@ -198,19 +197,15 @@ void Renderer::createGraphicsPipeline() {
 	};
 	vk::PipelineShaderStageCreateInfo shaderStagesInfo[] = { vertexShaderInfo , fragmentShaderInfo };
 
-	// vertex input
 	vk::PipelineVertexInputStateCreateInfo vertexInputInfo{};
 
-	// input assembly
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {
 		.topology = vk::PrimitiveTopology::eTriangleList,
 		.primitiveRestartEnable = vk::False
 	};
 
-	// tessellation
 	vk::PipelineTessellationStateCreateInfo tessellationInfo{};
 
-	// viewport and scissor
 	vk::Viewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
@@ -230,7 +225,6 @@ void Renderer::createGraphicsPipeline() {
 		.pScissors = &scissor
 	};
 
-	// rasterization
 	vk::PipelineRasterizationStateCreateInfo rasterizationInfo = {
 		.depthClampEnable = vk::False,
 		.rasterizerDiscardEnable = vk::False,
@@ -242,7 +236,6 @@ void Renderer::createGraphicsPipeline() {
 		.lineWidth = 1.0f
 	};
 
-	// multisampling and blending
 	vk::PipelineMultisampleStateCreateInfo multisamplingInfo = {
 		.rasterizationSamples = vk::SampleCountFlagBits::e1,
 		.sampleShadingEnable = vk::False
@@ -260,13 +253,11 @@ void Renderer::createGraphicsPipeline() {
 		.pAttachments = &colorBlendAttachmentInfo
 	};
 
-	// dynamic rendering attachment info
 	vk::PipelineRenderingCreateInfo attachmentInfo = {
 		.colorAttachmentCount = 1,
 		.pColorAttachmentFormats = &surfaceFormat.format
 	};
 
-	// null layout info
 	vk::raii::PipelineLayout pipelineLayout = nullptr;
 	vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.setLayoutCount = 0,

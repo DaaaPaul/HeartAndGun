@@ -22,29 +22,19 @@ private:
 	class Helper {
 	public:
 		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
-		
 		std::pair<const char**, uint32_t> verifyGlfwExtensionsPresent(Renderer const& renderer) const;
-		
 		std::vector<uint32_t> grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const;
-		
 		uint32_t findGraphicsQueueFamilyIndex(std::vector<vk::QueueFamilyProperties> const& queueFamilyProperties, Renderer const& renderer) const;
-		
 		vk::SurfaceFormatKHR getSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& surfaceFormats, Renderer const& renderer) const;
-		
 		vk::PresentModeKHR getPresentMode(std::vector<vk::PresentModeKHR> const& presentModes, Renderer const& renderer) const;
-		
 		vk::Extent2D getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
-		
 		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
-		
 		const std::vector<char> readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const;
-		
 		void transitionImageLayout(uint32_t const& imageIndex,
 			vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout,
 			vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask,
 			vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
 			Renderer const& renderer) const;
-		
 		void recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const;
 	};
 
