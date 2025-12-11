@@ -189,6 +189,18 @@ const std::vector<char> Renderer::Helper::readSprivFileBytes(std::string const& 
 	return buffer;
 }
 
+uint32_t Renderer::Helper::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties, Renderer const& renderer) const {
+	vk::PhysicalDeviceMemoryProperties gpuMemProperties = renderer.physicalDevice.getMemoryProperties();
+
+	for(uint32_t i = 0; i < gpuMemProperties.memoryTypeCount; ++i) {
+		if (((gpuMemProperties.memoryTypes[i].propertyFlags & properties) == properties) && (typeFilter & (1 << i))) {
+			return i;
+		}
+	}
+
+	throw std::runtime_error("Didn't find suitable GPU memory spot to store data");
+}
+
 void Renderer::Helper::transitionImageLayout(uint32_t const& imageIndex,
 											 vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout, 
 											 vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask, 
@@ -241,6 +253,7 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 
 	renderer.commandBuffers[renderer.frameInFlight].beginRendering(renderingInfo);
 	renderer.commandBuffers[renderer.frameInFlight].bindPipeline(vk::PipelineBindPoint::eGraphics, renderer.graphicsPipeline);
+	renderer.commandBuffers[renderer.frameInFlight].bindVertexBuffers(0, *renderer.vertexBuffer, { 0 });
 	renderer.commandBuffers[renderer.frameInFlight].draw(3, 1, 0, 0);
 	renderer.commandBuffers[renderer.frameInFlight].endRendering();
 

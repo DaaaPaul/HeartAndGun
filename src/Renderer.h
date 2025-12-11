@@ -9,6 +9,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <glm.hpp>
 #include "Logger.h"
 
 class Renderer {
@@ -30,12 +31,35 @@ private:
 		vk::Extent2D getSurfaceExtent(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 		const std::vector<char> readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const;
+		uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties, Renderer const& renderer) const;
 		void transitionImageLayout(uint32_t const& imageIndex,
 			vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout,
 			vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask,
 			vk::PipelineStageFlags2 const& dstStageMask, vk::AccessFlags2 const& dstAccessMask,
 			Renderer const& renderer) const;
 		void recordCommandBuffer(uint32_t const& imageIndex, Renderer const& renderer) const;
+	};
+
+	struct VertexAttributes {
+		glm::vec2 pos;
+		glm::vec4 colour;
+
+		static vk::VertexInputBindingDescription getBindingDesc() {
+			return { 0, sizeof(VertexAttributes), vk::VertexInputRate::eVertex };
+		}
+
+		static std::vector<vk::VertexInputAttributeDescription> getAttribDesc() {
+			return {
+				vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(VertexAttributes, pos)),
+				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(VertexAttributes, colour))
+			};
+		}
+	};
+
+	const std::vector<VertexAttributes> verticies = {
+		{ {0.0f, -0.5f}, {1.0f, 0.0f, 1.0f, 1.0f} },
+		{ {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f, 1.0f} },
+		{ {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f} },
 	};
 
 	const Helper HELPER{};
@@ -74,6 +98,8 @@ private:
 	vk::raii::SwapchainKHR swapchain = nullptr;
 	std::vector<vk::raii::ImageView> imageViews{};
 	vk::raii::Pipeline graphicsPipeline = nullptr;
+	vk::raii::Buffer vertexBuffer = nullptr;
+	vk::raii::DeviceMemory vertexBufferMemory = nullptr;
 	vk::raii::CommandPool commandPool = nullptr;
 	std::vector<vk::raii::CommandBuffer> commandBuffers{};
 	std::vector<vk::raii::Semaphore> renderReady{};
@@ -94,6 +120,7 @@ private:
 	void createSwapchain();
 	void createImageViews();
 	void createGraphicsPipeline();
+	void createVertexBuffer();
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSyncObjects();

@@ -1,14 +1,7 @@
-static float2 positions[3] = float2[](
-    float2(0.0, -0.5),  // top
-    float2(0.5, 0.5),  // bottom right
-	float2(-0.5, 0.5), // bottom left
-);
-
-static float4 colours[3] = float4[](
-	float4(1.0, 0.0, 0.0, 1.0),
-	float4(0.0, 1.0, 0.0, 1.0),
-	float4(0.0, 0.0, 1.0, 1.0),
-);
+struct VertexAttributes {
+    float2 inPosition;
+    float4 inColour;
+};
 
 struct Vertex {
     float4 colour;
@@ -16,10 +9,12 @@ struct Vertex {
 };
 
 [shader("vertex")]
-Vertex vertexMain(uint id : SV_VertexID) {
+Vertex vertexMain(VertexAttributes va) {
     Vertex vertex;
-    vertex.position = float4(positions[id], 0.0, 1.0);
-    vertex.colour = colours[id];
+
+    vertex.position = float4(va.inPosition, 0.0, 1.0);
+    vertex.colour = va.inColour;
+
     return vertex;
 }
 

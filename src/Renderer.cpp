@@ -33,6 +33,7 @@ void Renderer::initializeVulkan() {
 	createSwapchain();
 	createImageViews();
 	createGraphicsPipeline();
+	createVertexBuffer();
 	createCommandPool();
 	createCommandBuffers();
 	createSyncObjects();
@@ -204,7 +205,15 @@ void Renderer::createGraphicsPipeline() {
 	};
 	vk::PipelineShaderStageCreateInfo shaderStagesInfo[] = { vertexShaderInfo , fragmentShaderInfo };
 
-	vk::PipelineVertexInputStateCreateInfo vertexInputInfo{};
+	vk::VertexInputBindingDescription bindingDesc = VertexAttributes::getBindingDesc();
+	std::vector<vk::VertexInputAttributeDescription> attribDesc = VertexAttributes::getAttribDesc();
+
+	vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &bindingDesc,
+		.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribDesc.size()),
+		.pVertexAttributeDescriptions = attribDesc.data()
+	};
 
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {
 		.topology = vk::PrimitiveTopology::eTriangleList,
@@ -288,6 +297,30 @@ void Renderer::createGraphicsPipeline() {
 
 	graphicsPipeline = vk::raii::Pipeline(logicalDevice, nullptr, pipelineInfo);
 	LOGGER.logInformation("Pipeline created");
+}
+
+void Renderer::createVertexBuffer() {
+	vk::BufferCreateInfo bufferInfo = {
+		.size = sizeof(verticies[0]) * verticies.size(),
+		.usage = vk::BufferUsageFlagBits::eVertexBuffer,
+		.sharingMode = vk::SharingMode::eExclusive,
+	};
+	vertexBuffer = vk::raii::Buffer(logicalDevice, bufferInfo);
+
+	vk::MemoryRequirements memRequirements = vertexBuffer.getMemoryRequirements();
+
+	vk::MemoryAllocateInfo memAllocInfo = {
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = HELPER.findMemoryType(memRequirements.memoryTypeBits, 
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, *this)
+	};
+
+	vertexBufferMemory = vk::raii::DeviceMemory(logicalDevice, memAllocInfo);
+	vertexBuffer.bindMemory(*vertexBufferMemory, 0);
+
+	void* dataAddress = vertexBufferMemory.mapMemory(0, bufferInfo.size);
+	memcpy(dataAddress, verticies.data(), bufferInfo.size);
+	vertexBufferMemory.unmapMemory();
 }
 
 void Renderer::createCommandPool() {
@@ -379,23 +412,24 @@ void Renderer::mainLoop() {
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
+
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
+
 		drawFrame();
 
 		if (glfwGetTime() <= nextSecond) {
 			++framesInSecond;
-		}
-		else {
+		} else {
 			LOGGER.logSpecial("FPS:" + std::to_string(framesInSecond));
 			++nextSecond;
 			framesInSecond = 0;
 		}
 	}
+
 	logicalDevice.waitIdle();
 }
 
 void Renderer::clean() {
-	cleanCurrentSwapchain();
-
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

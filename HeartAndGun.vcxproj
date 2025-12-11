@@ -107,7 +107,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.4.321.1\Include;C:\Users\paulp\ComputerPrograms\HeartAndGun\vendor\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\paulp\ComputerPrograms\HeartAndGun\vendor\glm;C:\VulkanSDK\1.4.321.1\Include;C:\Users\paulp\ComputerPrograms\HeartAndGun\vendor\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
