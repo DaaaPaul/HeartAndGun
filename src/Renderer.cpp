@@ -33,9 +33,10 @@ void Renderer::initializeVulkan() {
 	createSwapchain();
 	createImageViews();
 	createGraphicsPipeline();
-	createVertexBuffer();
 	createCommandPool();
 	createCommandBuffers();
+	createVertexBuffer();
+	createIndexBuffer();
 	createSyncObjects();
 
 	LOGGER.logInformation("-------------------------------------------------------------------------------------------------------\n"
@@ -300,27 +301,57 @@ void Renderer::createGraphicsPipeline() {
 }
 
 void Renderer::createVertexBuffer() {
-	vk::BufferCreateInfo bufferInfo = {
-		.size = sizeof(verticies[0]) * verticies.size(),
-		.usage = vk::BufferUsageFlagBits::eVertexBuffer,
-		.sharingMode = vk::SharingMode::eExclusive,
-	};
-	vertexBuffer = vk::raii::Buffer(logicalDevice, bufferInfo);
+	vk::DeviceSize bufferSize = sizeof(verticies[0]) * verticies.size();
 
-	vk::MemoryRequirements memRequirements = vertexBuffer.getMemoryRequirements();
+	vk::raii::Buffer stagingBuffer = nullptr;
+	vk::raii::DeviceMemory stagingMemory = nullptr;
 
-	vk::MemoryAllocateInfo memAllocInfo = {
-		.allocationSize = memRequirements.size,
-		.memoryTypeIndex = HELPER.findMemoryType(memRequirements.memoryTypeBits, 
-			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, *this)
-	};
+	HELPER.createBuffer(bufferSize,
+		vk::BufferUsageFlagBits::eTransferSrc,
+		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+		stagingMemory,
+		stagingBuffer,
+		*this);
 
-	vertexBufferMemory = vk::raii::DeviceMemory(logicalDevice, memAllocInfo);
-	vertexBuffer.bindMemory(*vertexBufferMemory, 0);
+	void* dataAddress = stagingMemory.mapMemory(0, bufferSize);
+	memcpy(dataAddress, verticies.data(), bufferSize);
+	stagingMemory.unmapMemory();
 
-	void* dataAddress = vertexBufferMemory.mapMemory(0, bufferInfo.size);
-	memcpy(dataAddress, verticies.data(), bufferInfo.size);
-	vertexBufferMemory.unmapMemory();
+	HELPER.createBuffer(bufferSize,
+		vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
+		vk::MemoryPropertyFlagBits::eDeviceLocal,
+		vertexBufferMemory,
+		vertexBuffer,
+		*this);
+
+	HELPER.copyBuffer(stagingBuffer, vertexBuffer, bufferSize, *this);
+}
+
+void Renderer::createIndexBuffer() {
+	vk::DeviceSize bufferSize = sizeof(vertexIndices[0]) * vertexIndices.size();
+
+	vk::raii::Buffer stagingBuffer = nullptr;
+	vk::raii::DeviceMemory stagingMemory = nullptr;
+
+	HELPER.createBuffer(bufferSize,
+		vk::BufferUsageFlagBits::eTransferSrc,
+		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+		stagingMemory,
+		stagingBuffer,
+		*this);
+
+	void* dataAddress = stagingMemory.mapMemory(0, bufferSize);
+	memcpy(dataAddress, vertexIndices.data(), bufferSize);
+	stagingMemory.unmapMemory();
+
+	HELPER.createBuffer(bufferSize,
+		vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+		vk::MemoryPropertyFlagBits::eDeviceLocal,
+		indexMemory,
+		indexBuffer,
+		*this);
+
+	HELPER.copyBuffer(stagingBuffer, indexBuffer, bufferSize, *this);
 }
 
 void Renderer::createCommandPool() {

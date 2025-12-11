@@ -20,8 +20,7 @@ public:
 		WINDOW_WIDTH(width), WINDOW_HEIGHT(height), ENABLE_VALIDATION_LAYER(enable), FRAMES_IN_FLIGHT(framesInFlight) {}
 
 private:
-	class Helper {
-	public:
+	struct Helper {
 		const std::vector<const char*> verifyValidationLayers(Renderer const& renderer) const;
 		std::pair<const char**, uint32_t> verifyGlfwExtensionsPresent(Renderer const& renderer) const;
 		std::vector<uint32_t> grokPhysicalDevices(std::vector<vk::raii::PhysicalDevice> const& physicalDevices, Renderer const& renderer) const;
@@ -32,6 +31,10 @@ private:
 		uint32_t getSwapchainImageCount(vk::SurfaceCapabilitiesKHR const& capabilities, Renderer const& renderer) const;
 		const std::vector<char> readSprivFileBytes(std::string const& filePath, Renderer const& renderer) const;
 		uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties, Renderer const& renderer) const;
+		void createBuffer(vk::DeviceSize bufferSize, vk::Flags<vk::BufferUsageFlagBits> usage, vk::MemoryPropertyFlags memoryTypeNeeds,
+			vk::raii::DeviceMemory& memory, vk::raii::Buffer& buffer,
+			Renderer const& renderer) const;
+		void copyBuffer(vk::raii::Buffer& src, vk::raii::Buffer& dst, vk::DeviceSize const& size, Renderer const& renderer) const;
 		void transitionImageLayout(uint32_t const& imageIndex,
 			vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout,
 			vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask,
@@ -57,9 +60,14 @@ private:
 	};
 
 	const std::vector<VertexAttributes> verticies = {
-		{ {0.0f, -0.5f}, {1.0f, 0.0f, 1.0f, 1.0f} },
-		{ {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f, 1.0f} },
-		{ {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f} },
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}}, // top left
+		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}}, // top right
+		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}}, // bottom right
+		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f, 1.0f}} // bottom left
+	};
+
+	const std::vector<uint32_t> vertexIndices = {
+		0, 1, 2, 2, 3, 0
 	};
 
 	const Helper HELPER{};
@@ -100,6 +108,8 @@ private:
 	vk::raii::Pipeline graphicsPipeline = nullptr;
 	vk::raii::Buffer vertexBuffer = nullptr;
 	vk::raii::DeviceMemory vertexBufferMemory = nullptr;
+	vk::raii::Buffer indexBuffer = nullptr;
+	vk::raii::DeviceMemory indexMemory = nullptr;
 	vk::raii::CommandPool commandPool = nullptr;
 	std::vector<vk::raii::CommandBuffer> commandBuffers{};
 	std::vector<vk::raii::Semaphore> renderReady{};
@@ -120,9 +130,10 @@ private:
 	void createSwapchain();
 	void createImageViews();
 	void createGraphicsPipeline();
-	void createVertexBuffer();
 	void createCommandPool();
 	void createCommandBuffers();
+	void createVertexBuffer();
+	void createIndexBuffer();
 	void createSyncObjects();
 	void drawFrame();
 	void mainLoop();

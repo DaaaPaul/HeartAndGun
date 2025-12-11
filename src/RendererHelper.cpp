@@ -201,6 +201,44 @@ uint32_t Renderer::Helper::findMemoryType(uint32_t typeFilter, vk::MemoryPropert
 	throw std::runtime_error("Didn't find suitable GPU memory spot to store data");
 }
 
+void Renderer::Helper::createBuffer(vk::DeviceSize bufferSize, vk::Flags<vk::BufferUsageFlagBits> usage, vk::MemoryPropertyFlags memoryTypeNeeds,
+									vk::raii::DeviceMemory& memory, vk::raii::Buffer& buffer,
+									Renderer const& renderer) const {
+	vk::BufferCreateInfo bufferInfo = {
+		.size = bufferSize,
+		.usage = usage,
+		.sharingMode = vk::SharingMode::eExclusive,
+	};
+	buffer = vk::raii::Buffer(renderer.logicalDevice, bufferInfo);
+
+	vk::MemoryRequirements bufferRequirements = buffer.getMemoryRequirements();
+
+	vk::MemoryAllocateInfo memAllocInfo = {
+		.allocationSize = bufferRequirements.size,
+		.memoryTypeIndex = findMemoryType(bufferRequirements.memoryTypeBits,
+			memoryTypeNeeds, renderer)
+	};
+	memory = vk::raii::DeviceMemory(renderer.logicalDevice, memAllocInfo);
+
+	buffer.bindMemory(*memory, 0);
+}
+
+void Renderer::Helper::copyBuffer(vk::raii::Buffer& src, vk::raii::Buffer& dst, vk::DeviceSize const& size, Renderer const& renderer) const {
+	vk::CommandBufferAllocateInfo tempAllocInfo = {
+		.commandPool = renderer.commandPool,
+		.level = vk::CommandBufferLevel::ePrimary,
+		.commandBufferCount = 1
+	};
+
+	vk::raii::CommandBuffer tempTransBuffer = std::move(renderer.logicalDevice.allocateCommandBuffers(tempAllocInfo).front());
+	tempTransBuffer.begin(vk::CommandBufferBeginInfo { .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit } );
+	tempTransBuffer.copyBuffer(src, dst, vk::BufferCopy(0, 0, size));
+	tempTransBuffer.end();
+
+	renderer.graphicsQueue.submit(vk::SubmitInfo{ .commandBufferCount = 1, .pCommandBuffers = &*tempTransBuffer }, nullptr);
+	renderer.graphicsQueue.waitIdle();
+}
+
 void Renderer::Helper::transitionImageLayout(uint32_t const& imageIndex,
 											 vk::ImageLayout const& oldLayout, vk::ImageLayout const& newLayout, 
 											 vk::PipelineStageFlags2 const& srcStageMask, vk::AccessFlags2 const& srcAccessMask, 
@@ -254,7 +292,8 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 	renderer.commandBuffers[renderer.frameInFlight].beginRendering(renderingInfo);
 	renderer.commandBuffers[renderer.frameInFlight].bindPipeline(vk::PipelineBindPoint::eGraphics, renderer.graphicsPipeline);
 	renderer.commandBuffers[renderer.frameInFlight].bindVertexBuffers(0, *renderer.vertexBuffer, { 0 });
-	renderer.commandBuffers[renderer.frameInFlight].draw(3, 1, 0, 0);
+	renderer.commandBuffers[renderer.frameInFlight].bindIndexBuffer(*renderer.indexBuffer, 0, vk::IndexType::eUint32);
+	renderer.commandBuffers[renderer.frameInFlight].drawIndexed(renderer.vertexIndices.size(), 1, 0, 0, 0);
 	renderer.commandBuffers[renderer.frameInFlight].endRendering();
 
 	transitionImageLayout(imageIndex,
