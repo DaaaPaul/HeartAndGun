@@ -10,6 +10,8 @@
 #include <string>
 #include <utility>
 #include <glm.hpp>
+#include <gtc/matrix_transform.hpp>
+#include <chrono>
 #include "Logger.h"
 
 class Renderer {
@@ -59,6 +61,12 @@ private:
 		}
 	};
 
+	struct UniformBufferObject {
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 projection;
+	};
+
 	const std::vector<VertexAttributes> verticies = {
 		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}}, // top left
 		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}}, // top right
@@ -105,6 +113,13 @@ private:
 	vk::raii::Queue graphicsQueue = nullptr;
 	vk::raii::SwapchainKHR swapchain = nullptr;
 	std::vector<vk::raii::ImageView> imageViews{};
+	vk::raii::DescriptorSetLayout descriptorSetLayout = nullptr;
+	std::vector<vk::raii::Buffer> uniformBuffers;
+	std::vector<vk::raii::DeviceMemory> uniformBuffersMemory;
+	std::vector<void*> uniformBuffersMapped;
+	vk::raii::DescriptorPool descriptorPool = nullptr;
+	std::vector<vk::raii::DescriptorSet> descriptorSets{};
+	vk::raii::PipelineLayout pipelineLayout = nullptr;
 	vk::raii::Pipeline graphicsPipeline = nullptr;
 	vk::raii::Buffer vertexBuffer = nullptr;
 	vk::raii::DeviceMemory vertexBufferMemory = nullptr;
@@ -129,16 +144,21 @@ private:
 	void createLogicalDevice();
 	void createSwapchain();
 	void createImageViews();
+	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
 	void createCommandPool();
 	void createCommandBuffers();
 	void createVertexBuffer();
 	void createIndexBuffer();
+	void createUniformBuffers();
+	void createDescriptorPool();
+	void createDescriptorSets();
 	void createSyncObjects();
 	void drawFrame();
 	void mainLoop();
 	void clean();
 
+	void updateUniformBuffer(uint32_t index);
 	static void framebufferResize(GLFWwindow* window, int width, int height);
 	void cleanCurrentSyncObjects();
 	void cleanCurrentSwapchain();

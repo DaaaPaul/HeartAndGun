@@ -293,6 +293,9 @@ void Renderer::Helper::recordCommandBuffer(uint32_t const& imageIndex, Renderer 
 	renderer.commandBuffers[renderer.frameInFlight].bindPipeline(vk::PipelineBindPoint::eGraphics, renderer.graphicsPipeline);
 	renderer.commandBuffers[renderer.frameInFlight].bindVertexBuffers(0, *renderer.vertexBuffer, { 0 });
 	renderer.commandBuffers[renderer.frameInFlight].bindIndexBuffer(*renderer.indexBuffer, 0, vk::IndexType::eUint32);
+
+	renderer.commandBuffers[renderer.frameInFlight].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, renderer.pipelineLayout, 0, *renderer.descriptorSets[renderer.frameInFlight], nullptr);
+
 	renderer.commandBuffers[renderer.frameInFlight].drawIndexed(renderer.vertexIndices.size(), 1, 0, 0, 0);
 	renderer.commandBuffers[renderer.frameInFlight].endRendering();
 
